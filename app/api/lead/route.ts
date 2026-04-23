@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
       pageUrl: pageUrl || process.env.NEXT_PUBLIC_SITE_URL || "",
     });
 
-    const amoResult = await createAmoCRMLead({ name, phone, address });
+    const amoResult = await createAmoCRMLead({ name, phone, address, fbp, fbc });
 
     return NextResponse.json({ success: true, meta: metaResult, amo: amoResult });
   } catch (err: any) {
@@ -96,9 +96,17 @@ async function sendToMetaCAPI(data: {
   return result;
 }
 
-async function createAmoCRMLead(data: { name: string; phone: string; address: string }) {
+async function createAmoCRMLead(data: {
+  name: string;
+  phone: string;
+  address: string;
+  fbp?: string;
+  fbc?: string;
+}) {
   const DOMAIN = process.env.AMOCRM_DOMAIN;
   const ACCESS_TOKEN = process.env.AMOCRM_ACCESS_TOKEN;
+  const FIELD_FBP = process.env.AMOCRM_FIELD_FBP;
+  const FIELD_FBC = process.env.AMOCRM_FIELD_FBC;
 
   if (!DOMAIN || !ACCESS_TOKEN) {
     console.warn("[AMOCRM] .env da AMOCRM_DOMAIN yoki AMOCRM_ACCESS_TOKEN yo'q, o'tkazib yuborildi");
@@ -124,6 +132,32 @@ async function createAmoCRMLead(data: { name: string; phone: string; address: st
       if (existing) {
         contactId = existing.id;
         console.log("[AMOCRM] Mavjud kontakt topildi:", contactId);
+
+        // Mavjud kontaktga FBP/FBC ni yangilash
+        if (FIELD_FBP || FIELD_FBC) {
+          const updateFields: any[] = [];
+          if (FIELD_FBP && data.fbp) {
+            updateFields.push({
+              field_id: parseInt(FIELD_FBP),
+              values: [{ value: data.fbp }],
+            });
+          }
+          if (FIELD_FBC && data.fbc) {
+            updateFields.push({
+              field_id: parseInt(FIELD_FBC),
+              values: [{ value: data.fbc }],
+            });
+          }
+
+          if (updateFields.length > 0) {
+            await fetch(`${baseUrl}/api/v4/contacts/${contactId}`, {
+              method: "PATCH",
+              headers,
+              body: JSON.stringify({ custom_fields_values: updateFields }),
+            });
+            console.log("[AMOCRM] FBP/FBC yangilandi");
+          }
+        }
       }
     }
   } catch (err) {
@@ -131,12 +165,32 @@ async function createAmoCRMLead(data: { name: string; phone: string; address: st
   }
 
   if (!contactId) {
-    const contactPayload = [{
-      name: data.name,
-      custom_fields_values: [{
+    const customFields: any[] = [
+      {
         field_code: "PHONE",
         values: [{ value: data.phone, enum_code: "WORK" }],
-      }],
+      },
+    ];
+
+    // FBP qo'shish
+    if (FIELD_FBP && data.fbp) {
+      customFields.push({
+        field_id: parseInt(FIELD_FBP),
+        values: [{ value: data.fbp }],
+      });
+    }
+
+    // FBC qo'shish
+    if (FIELD_FBC && data.fbc) {
+      customFields.push({
+        field_id: parseInt(FIELD_FBC),
+        values: [{ value: data.fbc }],
+      });
+    }
+
+    const contactPayload = [{
+      name: data.name,
+      custom_fields_values: customFields,
     }];
 
     const contactRes = await fetch(`${baseUrl}/api/v4/contacts`, {
@@ -150,7 +204,7 @@ async function createAmoCRMLead(data: { name: string; phone: string; address: st
       console.error("[AMOCRM KONTAKT XATOLIK]", JSON.stringify(contactData, null, 2));
     } else {
       contactId = contactData?._embedded?.contacts?.[0]?.id;
-      console.log("[AMOCRM] Yangi kontakt yaratildi:", contactId);
+      console.log("[AMOCRM] Yangi kontakt yaratildi (FBP/FBC bilan):", contactId);
     }
   }
 
@@ -194,5 +248,3 @@ async function createAmoCRMLead(data: { name: string; phone: string; address: st
 
   return { leadId, contactId };
 }
-
-
