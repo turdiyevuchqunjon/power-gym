@@ -43,11 +43,12 @@ export default function HomePage() {
       <div className="bg-orb orb-2" />
 
       <section className="hero">
-        <div className="hero-badge">🚀 Pro</div>
         <h1 className="hero-title">
-          Biznesingizni<br />
-          <span className="gradient-text">Yangi Bosqichga</span><br />
-          Olib Chiqamiz
+          Sifatli massaj kreslolar
+• 
+• <br />
+          <span className="gradient-text">O'zbekiston bo'ylab yetkazib berish xizmati</span><br />
+          by Powergym
         </h1>
         <p className="hero-sub">
           Ariza qoldiring — 30 daqiqa ichida mutaxassisimiz siz bilan bog&apos;lanadi
