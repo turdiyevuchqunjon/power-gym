@@ -43,16 +43,12 @@ export default function HomePage() {
       <div className="bg-orb orb-2" />
 
       <section className="hero">
-        <h1 className="hero-title">
-          Sifatli massaj kreslolar
-• 
-• <br />
-          <span className="gradient-text">O'zbekiston bo'ylab yetkazib berish xizmati</span><br />
-          by Powergym
-        </h1>
-        <p className="hero-sub">
-          Ariza qoldiring — 30 daqiqa ichida mutaxassisimiz siz bilan bog&apos;lanadi
-        </p>
+  <h1 className="hero-title">
+  Uy va ofis uchun massaj kreslolari<br />
+</h1>
+<p className="hero-sub">
+  Ariza qoldiring — mutaxassisimiz sizga eng maqbul modelni tanlashda yordam beradi
+</p>
       </section>
 
       <section className="form-section">
@@ -127,7 +123,6 @@ export default function HomePage() {
         </div>
 
         <div className="trust-badges">
-          <div className="badge-item"><span>⚡</span> 30 daqiqada javob</div>
           <div className="badge-item"><span>🎯</span> Bepul konsultatsiya</div>
           <div className="badge-item"><span>🔐</span> Ma&apos;lumot xavfsiz</div>
         </div>
