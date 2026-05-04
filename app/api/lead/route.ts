@@ -34,7 +34,10 @@ export async function POST(req: NextRequest) {
 
     const amoResult = await createAmoCRMLead({ name, phone, address, fbp, fbc });
 
-    return NextResponse.json({ success: true, meta: metaResult, amo: amoResult });
+    // ⬇️ YANGI QATOR — Telegram'ga yuborish
+    const telegramResult = await sendToTelegram({ name, phone, address, pageUrl: pageUrl || "" });
+
+    return NextResponse.json({ success: true, meta: metaResult, amo: amoResult, telegram: telegramResult });
   } catch (err: any) {
     console.error("[LEAD API ERROR]", err);
     return NextResponse.json({ error: err.message || "Server xatoligi" }, { status: 500 });
@@ -247,4 +250,86 @@ async function createAmoCRMLead(data: {
   }
 
   return { leadId, contactId };
+}
+
+// ⬇️ YANGI FUNKSIYA — Telegram botga ariza yuborish
+async function sendToTelegram(data: {
+  name: string;
+  phone: string;
+  address: string;
+  pageUrl: string;
+}) {
+  const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+  const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+
+  if (!TOKEN || !CHAT_ID) {
+    console.warn("[TELEGRAM] .env da TELEGRAM_BOT_TOKEN yoki TELEGRAM_CHAT_ID yo'q, o'tkazib yuborildi");
+    return { skipped: true };
+  }
+
+  // UTM kodlarini pageUrl dan ajratib olish
+  const utm: Record<string, string> = {
+    utm_source: "-",
+    utm_medium: "-",
+    utm_campaign: "-",
+    utm_term: "-",
+    utm_content: "-",
+  };
+
+  try {
+    if (data.pageUrl) {
+      const url = new URL(data.pageUrl);
+      Object.keys(utm).forEach((key) => {
+        const val = url.searchParams.get(key);
+        if (val) utm[key] = val;
+      });
+    }
+  } catch {
+    // Noto'g'ri URL bo'lsa, UTM bo'sh qoladi
+  }
+
+  // Toshkent vaqti
+  const date = new Date().toLocaleString("uz-UZ", { timeZone: "Asia/Tashkent" });
+
+  // Ism va familiyani ajratish
+  const nameParts = data.name.trim().split(/\s+/);
+  const firstName = nameParts[0] || "-";
+  const lastName = nameParts.slice(1).join(" ") || "-";
+
+  const text =
+    `🏋️ <b>Yangi ariza — Power Gym</b>\n\n` +
+    `👤 <b>Ism:</b> ${firstName}\n` +
+    `👤 <b>Familiya:</b> ${lastName}\n` +
+    `📞 <b>Telefon:</b> ${data.phone}\n` +
+    `📍 <b>Manzil:</b> ${data.address || "-"}\n` +
+    `📅 <b>Sana:</b> ${date}\n\n` +
+    `📊 <b>UTM ma'lumotlari:</b>\n` +
+    `• source: <code>${utm.utm_source}</code>\n` +
+    `• medium: <code>${utm.utm_medium}</code>\n` +
+    `• campaign: <code>${utm.utm_campaign}</code>\n` +
+    `• term: <code>${utm.utm_term}</code>\n` +
+    `• content: <code>${utm.utm_content}</code>`;
+
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: CHAT_ID,
+        text,
+        parse_mode: "HTML",
+      }),
+    });
+
+    const result = await res.json();
+    if (!result.ok) {
+      console.error("[TELEGRAM ERROR]", result);
+      return { error: result.description };
+    }
+    console.log("[TELEGRAM] Xabar yuborildi");
+    return { ok: true };
+  } catch (err: any) {
+    console.error("[TELEGRAM ERROR]", err);
+    return { error: err.message };
+  }
 }
