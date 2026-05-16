@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
       pageUrl: pageUrl || process.env.NEXT_PUBLIC_SITE_URL || "",
     });
 
-    const amoResult = await createAmoCRMLead({ name, phone, address, fbp, fbc });
+    const amoResult = await createAmoCRMLead({ name, phone, address, fbp, fbc, pageUrl });
 
     // ⬇️ YANGI QATOR — Telegram'ga yuborish
     const telegramResult = await sendToTelegram({ name, phone, address, pageUrl: pageUrl || "" });
@@ -105,6 +105,7 @@ async function createAmoCRMLead(data: {
   address: string;
   fbp?: string;
   fbc?: string;
+  pageUrl?: string;
 }) {
   const DOMAIN = process.env.AMOCRM_DOMAIN;
   const ACCESS_TOKEN = process.env.AMOCRM_ACCESS_TOKEN;
@@ -211,11 +212,23 @@ async function createAmoCRMLead(data: {
     }
   }
 
+  const utm = getUtmFromUrl(data.pageUrl);
+  const leadEmbedded: any = {};
+
+  if (contactId) {
+    leadEmbedded.contacts = [{ id: contactId }];
+  }
+
+  if (utm.utm_campaign) {
+    leadEmbedded.tags = [{ name: utm.utm_campaign }];
+  }
+
   const leadPayload: any[] = [{
     name: `${data.name} - ${data.phone}`,
     ...(process.env.AMOCRM_PIPELINE_ID ? { pipeline_id: parseInt(process.env.AMOCRM_PIPELINE_ID) } : {}),
     ...(process.env.AMOCRM_STATUS_ID ? { status_id: parseInt(process.env.AMOCRM_STATUS_ID) } : {}),
-    ...(contactId ? { _embedded: { contacts: [{ id: contactId }] } } : {}),
+    ...getAmoCRMUtmFields(utm),
+    ...(Object.keys(leadEmbedded).length > 0 ? { _embedded: leadEmbedded } : {}),
   }];
 
   const leadRes = await fetch(`${baseUrl}/api/v4/leads`, {
@@ -250,6 +263,51 @@ async function createAmoCRMLead(data: {
   }
 
   return { leadId, contactId };
+}
+
+function getAmoCRMUtmFields(utm: ReturnType<typeof getUtmFromUrl>) {
+  const customFields = [
+    { field_code: "UTM_SOURCE", value: utm.utm_source },
+    { field_code: "UTM_MEDIUM", value: utm.utm_medium },
+    { field_code: "UTM_CAMPAIGN", value: utm.utm_campaign },
+    { field_code: "UTM_CONTENT", value: utm.utm_content },
+    { field_code: "UTM_TERM", value: utm.utm_term },
+    { field_code: "UTM_REFERRER", value: utm.utm_referrer },
+  ]
+    .filter((field) => field.value)
+    .map((field) => ({
+      field_code: field.field_code,
+      values: [{ value: field.value }],
+    }));
+
+  return customFields.length > 0 ? { custom_fields_values: customFields } : {};
+}
+
+function getUtmFromUrl(pageUrl?: string) {
+  const emptyUtm = {
+    utm_source: "",
+    utm_medium: "",
+    utm_campaign: "",
+    utm_content: "",
+    utm_term: "",
+    utm_referrer: "",
+  };
+
+  if (!pageUrl) return emptyUtm;
+
+  try {
+    const url = new URL(pageUrl);
+    return {
+      utm_source: url.searchParams.get("utm_source") || url.searchParams.get("source") || "",
+      utm_medium: url.searchParams.get("utm_medium") || url.searchParams.get("medium") || "",
+      utm_campaign: url.searchParams.get("utm_campaign") || url.searchParams.get("campaign") || "",
+      utm_content: url.searchParams.get("utm_content") || url.searchParams.get("content") || "",
+      utm_term: url.searchParams.get("utm_term") || url.searchParams.get("term") || "",
+      utm_referrer: url.searchParams.get("utm_referrer") || "",
+    };
+  } catch {
+    return emptyUtm;
+  }
 }
 
 // ⬇️ YANGI FUNKSIYA — Telegram botga ariza yuborish
